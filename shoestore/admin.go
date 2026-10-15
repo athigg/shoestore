@@ -40,16 +40,18 @@ func adminPanel(c *gin.Context) {
 
 func adminShoeAdd(c *gin.Context) {
 	form, msg := parseShoeForm(c)
-	imageURL := strings.TrimSpace(c.PostForm("image_url"))
-
-	if msg == "" && imageURL == "" {
-		msg = "กรุณากรอกลิงก์รูปภาพ"
+	var imageURL string
+	if msg == "" {
+		var err error
+		imageURL, err = saveImage(c, "image")
+		if err != nil {
+			msg = err.Error()
+		}
 	}
-
 	if msg != "" {
 		renderAdminPanel(c, http.StatusBadRequest, gin.H{
 			"error": msg, "fName": form.Name, "fBrand": form.Brand,
-			"fPrice": c.PostForm("price"), "fDesc": form.Description, "fImageURL": imageURL,
+			"fPrice": c.PostForm("price"), "fDesc": form.Description,
 		})
 		return
 	}
@@ -101,18 +103,24 @@ func adminShoeUpdate(c *gin.Context) {
 	}
 
 	form, msg := parseShoeForm(c)
-	imageURL := strings.TrimSpace(c.PostForm("image_url"))
-
-	if msg == "" && imageURL == "" {
-		msg = "กรุณากรอกลิงก์รูปภาพ"
+	var newImage string
+	if msg == "" {
+		var err error
+		newImage, err = saveImage(c, "image")
+		if err != nil {
+			msg = err.Error()
+		}
 	}
-
 	if msg != "" {
 		renderEditShoe(c, http.StatusBadRequest, shoe, msg)
 		return
 	}
 
-	shoe.Name, shoe.Brand, shoe.Price, shoe.Description, shoe.ImageURL = form.Name, form.Brand, form.Price, form.Description, imageURL
+	oldImage := shoe.ImageURL
+	shoe.Name, shoe.Brand, shoe.Price, shoe.Description = form.Name, form.Brand, form.Price, form.Description
+	if newImage != "" {
+		shoe.ImageURL = newImage
+	}
 
 	err := config.DB.Transaction(func(tx *gorm.DB) error {
 		if err := tx.Model(&models.Shoe{}).Where("id = ?", shoe.ID).Updates(map[string]interface{}{
@@ -121,7 +129,6 @@ func adminShoeUpdate(c *gin.Context) {
 		}).Error; err != nil {
 			return err
 		}
-		// อัปเดตสต็อกของแต่ละไซส์ (ไม่ลบแล้วสร้างใหม่ เพื่อไม่ให้ข้อมูลซ้ำซ้อน)
 		for i, sz := range shoeSizes {
 			var ss models.ShoeSize
 			e := tx.Where("shoe_id = ? AND size = ?", shoe.ID, sz).First(&ss).Error
@@ -144,7 +151,9 @@ func adminShoeUpdate(c *gin.Context) {
 		renderError(c, http.StatusInternalServerError, "ไม่สามารถแก้ไขสินค้าได้")
 		return
 	}
-
+	if newImage != "" {
+		removeImage(oldImage)
+	}
 	setFlash(c, "ok", "แก้ไขสินค้าเรียบร้อยแล้ว")
 	c.Redirect(http.StatusSeeOther, "/admin/panel")
 }

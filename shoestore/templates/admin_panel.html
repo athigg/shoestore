@@ -9,8 +9,7 @@
 <section class="card pad section">
   <h2>เพิ่มสินค้าใหม่</h2>
   {{if .error}}<div class="alert alert-error">{{.error}}</div>{{end}}
-  <!-- เอา enctype="multipart/form-data" ออกเพราะไม่ได้อัปโหลดไฟล์แล้ว -->
-  <form method="POST" action="/admin/shoe/add" class="stack">
+  <form method="POST" action="/admin/shoe/add" enctype="multipart/form-data" class="stack">
     <input type="hidden" name="csrf_token" value="{{$.csrf}}">
     <div class="row">
       <div><label>ชื่อสินค้า</label><input type="text" name="name" value="{{.fName}}" required maxlength="100"></div>
@@ -19,11 +18,8 @@
     </div>
     <label>รายละเอียด</label>
     <textarea name="description" rows="3" maxlength="1000">{{.fDesc}}</textarea>
-    
-    <!-- เปลี่ยนเป็นช่องกรอก URL รูปภาพ -->
-    <label>ลิงก์รูปภาพ (Image URL)</label>
-    <input type="text" name="image_url" placeholder="https://example.com/shoe.jpg" required>
-
+    <label>รูปภาพ (JPG/PNG/GIF/WEBP ไม่เกิน 3 MB)</label>
+    <input type="file" name="image" accept="image/png,image/jpeg,image/gif,image/webp">
     <label>สต็อกแต่ละไซส์</label>
     <div class="sizes">
       {{range .sizes}}<div><span class="small muted">ไซส์ {{.}}</span><input type="number" name="stock_{{.}}" min="0" max="100000" value="0"></div>{{end}}

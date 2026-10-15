@@ -2,8 +2,7 @@
 <div class="card pad narrow wide">
   <h1 class="page-title">แก้ไขสินค้า</h1>
   {{if .error}}<div class="alert alert-error">{{.error}}</div>{{end}}
-  <!-- เอา enctype="multipart/form-data" ออก -->
-  <form method="POST" action="/admin/shoe/{{.shoe.ID}}/update" class="stack">
+  <form method="POST" action="/admin/shoe/{{.shoe.ID}}/update" enctype="multipart/form-data" class="stack">
     <input type="hidden" name="csrf_token" value="{{$.csrf}}">
     <label>ชื่อสินค้า</label>
     <input type="text" name="name" value="{{.shoe.Name}}" required maxlength="100">
@@ -13,12 +12,9 @@
     <input type="number" name="price" value="{{printf "%.2f" .shoe.Price}}" required min="1" max="1000000" step="0.01">
     <label>รายละเอียด</label>
     <textarea name="description" rows="3" maxlength="1000">{{.shoe.Description}}</textarea>
-    
-    <!-- แสดงรูปเดิม และช่องแก้ไขลิงก์ URL -->
-    <label>ลิงก์รูปภาพ (Image URL)</label>
+    <label>รูปภาพ (เลือกใหม่เฉพาะเมื่อต้องการเปลี่ยน)</label>
     {{if .shoe.ImageURL}}<img class="thumb big-thumb" src="{{.shoe.ImageURL}}" alt="">{{end}}
-    <input type="text" name="image_url" value="{{.shoe.ImageURL}}" placeholder="https://example.com/shoe.jpg" required>
-
+    <input type="file" name="image" accept="image/png,image/jpeg,image/gif,image/webp">
     <label>สต็อกแต่ละไซส์</label>
     <div class="sizes">
       {{range .sizes}}<div><span class="small muted">ไซส์ {{.}}</span><input type="number" name="stock_{{.}}" min="0" max="100000" value="{{index $.sizeMap .}}"></div>{{end}}
