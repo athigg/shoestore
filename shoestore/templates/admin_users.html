@@ -1,0 +1,28 @@
+{{template "header" .}}
+<h1 class="page-title">ผู้ใช้งานทั้งหมด (Admin)</h1>
+<div class="card table-wrap">
+  <table>
+    <thead><tr><th>#</th><th>ชื่อผู้ใช้</th><th>อีเมล</th><th>บทบาท</th><th>สมัครเมื่อ</th><th></th></tr></thead>
+    <tbody>
+      {{range .users}}
+      <tr>
+        <td>{{.ID}}</td>
+        <td>{{.Username}}</td>
+        <td>{{.Email}}</td>
+        <td><span class="badge {{if eq .Role "admin"}}st-shipped{{else}}st-pending{{end}}">{{.Role}}</span></td>
+        <td class="small">{{.CreatedAt.Format "02/01/2006"}}</td>
+        <td class="actions">
+          <a class="btn btn-outline btn-sm" href="/admin/user/{{.ID}}/edit">แก้ไข</a>
+          {{if ne .ID $.meID}}
+          <form method="POST" action="/admin/user/{{.ID}}/delete" class="inline" data-confirm="ต้องการลบผู้ใช้นี้ใช่หรือไม่?">
+            <input type="hidden" name="csrf_token" value="{{$.csrf}}">
+            <button type="submit" class="btn btn-danger btn-sm">ลบ</button>
+          </form>
+          {{end}}
+        </td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+</div>
+{{template "footer" .}}

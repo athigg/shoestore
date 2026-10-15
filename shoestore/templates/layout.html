@@ -1,0 +1,44 @@
+{{define "header"}}<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{{.title}} - Shoestore</title>
+<link rel="stylesheet" href="/static/style.css">
+<script src="/static/app.js" defer></script>
+</head>
+<body>
+<header class="site-header">
+  <div class="container bar">
+    <a class="brand" href="/">SHOESTORE</a>
+    <nav class="nav">
+      {{if .isLoggedIn}}
+        <span class="who">สวัสดี, <strong>{{.me}}</strong></span>
+        {{if .isAdmin}}
+          <a href="/admin/panel">จัดการสินค้า</a>
+          <a href="/admin/orders">ออเดอร์ทั้งหมด</a>
+          <a href="/admin/users">ผู้ใช้งาน</a>
+        {{else}}
+          <a href="/my-orders">คำสั่งซื้อของฉัน</a>
+        {{end}}
+        <form method="POST" action="/logout" class="inline">
+          <input type="hidden" name="csrf_token" value="{{$.csrf}}">
+          <button type="submit" class="btn btn-danger btn-sm">ออกจากระบบ</button>
+        </form>
+      {{else}}
+        <a href="/login">เข้าสู่ระบบ</a>
+        <a href="/register" class="btn btn-primary btn-sm">สมัครสมาชิก</a>
+      {{end}}
+    </nav>
+  </div>
+</header>
+<main class="container main">
+{{if .flash}}<div class="alert {{.flashClass}}">{{.flash}}</div>{{end}}
+{{end}}
+
+{{define "footer"}}
+</main>
+<footer class="site-footer"><div class="container">© Shoestore</div></footer>
+</body>
+</html>
+{{end}}

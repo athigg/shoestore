@@ -1,0 +1,56 @@
+{{template "header" .}}
+<h1 class="page-title">จัดการสินค้า (Admin)</h1>
+<div class="stats">
+  <div class="card pad"><div class="muted small">สินค้า</div><div class="stat">{{.nShoes}}</div></div>
+  <div class="card pad"><div class="muted small">ออเดอร์</div><div class="stat">{{.nOrders}}</div></div>
+  <div class="card pad"><div class="muted small">ผู้ใช้งาน</div><div class="stat">{{.nUsers}}</div></div>
+</div>
+
+<section class="card pad section">
+  <h2>เพิ่มสินค้าใหม่</h2>
+  {{if .error}}<div class="alert alert-error">{{.error}}</div>{{end}}
+  <form method="POST" action="/admin/shoe/add" enctype="multipart/form-data" class="stack">
+    <input type="hidden" name="csrf_token" value="{{$.csrf}}">
+    <div class="row">
+      <div><label>ชื่อสินค้า</label><input type="text" name="name" value="{{.fName}}" required maxlength="100"></div>
+      <div><label>แบรนด์</label><input type="text" name="brand" value="{{.fBrand}}" required maxlength="50"></div>
+      <div><label>ราคา (บาท)</label><input type="number" name="price" value="{{.fPrice}}" required min="1" max="1000000" step="0.01"></div>
+    </div>
+    <label>รายละเอียด</label>
+    <textarea name="description" rows="3" maxlength="1000">{{.fDesc}}</textarea>
+    <label>รูปภาพ (JPG/PNG/GIF/WEBP ไม่เกิน 3 MB)</label>
+    <input type="file" name="image" accept="image/png,image/jpeg,image/gif,image/webp">
+    <label>สต็อกแต่ละไซส์</label>
+    <div class="sizes">
+      {{range .sizes}}<div><span class="small muted">ไซส์ {{.}}</span><input type="number" name="stock_{{.}}" min="0" max="100000" value="0"></div>{{end}}
+    </div>
+    <button type="submit" class="btn btn-primary">เพิ่มสินค้า</button>
+  </form>
+</section>
+
+<div class="card table-wrap section">
+  <table>
+    <thead><tr><th>รูป</th><th>ชื่อ</th><th>แบรนด์</th><th>ราคา</th><th>สต็อก</th><th></th></tr></thead>
+    <tbody>
+      {{range .shoes}}
+      <tr>
+        <td>{{if .ImageURL}}<img class="thumb" src="{{.ImageURL}}" alt="">{{end}}</td>
+        <td><a href="/shoe/{{.ID}}">{{.Name}}</a></td>
+        <td>{{.Brand}}</td>
+        <td>฿{{printf "%.2f" .Price}}</td>
+        <td class="small">{{range .Sizes}}{{.Size}}:{{.Stock}} {{end}}<br><strong>รวม {{.TotalStock}}</strong></td>
+        <td class="actions">
+          <a class="btn btn-outline btn-sm" href="/admin/shoe/{{.ID}}/edit">แก้ไข</a>
+          <form method="POST" action="/admin/shoe/{{.ID}}/delete" class="inline" data-confirm="ต้องการลบสินค้านี้ใช่หรือไม่?">
+            <input type="hidden" name="csrf_token" value="{{$.csrf}}">
+            <button type="submit" class="btn btn-danger btn-sm">ลบ</button>
+          </form>
+        </td>
+      </tr>
+      {{else}}
+      <tr><td colspan="6" class="empty">ยังไม่มีสินค้า</td></tr>
+      {{end}}
+    </tbody>
+  </table>
+</div>
+{{template "footer" .}}

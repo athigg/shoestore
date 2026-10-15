@@ -1,0 +1,86 @@
+{{template "header" .}}
+<p><a href="/">← กลับหน้าร้านค้า</a></p>
+<div class="detail">
+  <div>
+    {{if .shoe.ImageURL}}<img class="detail-img" src="{{.shoe.ImageURL}}" alt="{{.shoe.Name}}">{{else}}<div class="detail-img placeholder">ไม่มีรูปภาพ</div>{{end}}
+  </div>
+  <div class="card pad">
+    <span class="badge">{{.shoe.Brand}}</span>
+    <h1>{{.shoe.Name}}</h1>
+    <p class="price big">฿{{printf "%.2f" .shoe.Price}}</p>
+    {{if .reviewCount}}<p class="muted"><span class="stars">{{stars .avgInt}}</span> {{printf "%.1f" .avg}} / 5 ({{.reviewCount}} รีวิว)</p>{{end}}
+    <p class="pre">{{.shoe.Description}}</p>
+    <hr>
+    <h2>สั่งซื้อสินค้า</h2>
+    {{if .orderError}}<div class="alert alert-error">{{.orderError}}</div>{{end}}
+    {{if not .isLoggedIn}}
+      <p class="muted">กรุณา <a href="/login">เข้าสู่ระบบ</a> เพื่อสั่งซื้อสินค้า</p>
+    {{else if .isAdmin}}
+      <p class="muted">บัญชีผู้ดูแลระบบไม่สามารถสั่งซื้อสินค้าได้</p>
+    {{else}}
+      <form method="POST" action="/order" class="stack">
+        <input type="hidden" name="csrf_token" value="{{$.csrf}}">
+        <input type="hidden" name="shoe_id" value="{{.shoe.ID}}">
+        <label>ไซส์</label>
+        <select name="size" required>
+          <option value="" disabled {{if not .selSize}}selected{{end}}>-- เลือกไซส์ --</option>
+          {{range .shoe.Sizes}}
+            {{if gt .Stock 0}}<option value="{{.Size}}" {{if eq .Size $.selSize}}selected{{end}}>ไซส์ {{.Size}} (เหลือ {{.Stock}} คู่)</option>
+            {{else}}<option value="{{.Size}}" disabled>ไซส์ {{.Size}} (สินค้าหมด)</option>{{end}}
+          {{end}}
+        </select>
+        <label>ที่อยู่จัดส่ง</label>
+        <textarea name="address" rows="3" required minlength="10" maxlength="300">{{.addr}}</textarea>
+        <label>เบอร์โทรศัพท์</label>
+        <input type="tel" name="phone" value="{{.phone}}" required maxlength="15" placeholder="0812345678">
+        <button type="submit" class="btn btn-primary">🛒 สั่งซื้อ</button>
+      </form>
+    {{end}}
+  </div>
+</div>
+
+<section class="card pad section">
+  <h2>รีวิวจากผู้ซื้อ</h2>
+  {{range .reviews}}
+  <div class="review">
+    <div>
+      <strong>{{if .User.Username}}{{.User.Username}}{{else}}ผู้ใช้ที่ถูกลบ{{end}}</strong>
+      <span class="stars">{{stars .Rating}}</span>
+      <span class="muted small">{{.CreatedAt.Format "02/01/2006 15:04"}}</span>
+    </div>
+    <p class="pre">{{.Comment}}</p>
+    <div class="actions">
+      {{if eq .UserID $.meID}}<a class="btn btn-outline btn-sm" href="/review/{{.ID}}/edit">แก้ไข</a>{{end}}
+      {{if or (eq .UserID $.meID) $.isAdmin}}
+      <form method="POST" action="/review/{{.ID}}/delete" class="inline" data-confirm="ต้องการลบรีวิวนี้ใช่หรือไม่?">
+        <input type="hidden" name="csrf_token" value="{{$.csrf}}">
+        <button type="submit" class="btn btn-danger btn-sm">ลบ</button>
+      </form>
+      {{end}}
+    </div>
+  </div>
+  {{else}}
+  <p class="muted">ยังไม่มีรีวิว</p>
+  {{end}}
+
+  <hr>
+  <h3>เขียนรีวิว</h3>
+  {{if .reviewError}}<div class="alert alert-error">{{.reviewError}}</div>{{end}}
+  {{if not .isLoggedIn}}
+    <p class="muted">กรุณา <a href="/login">เข้าสู่ระบบ</a> เพื่อเขียนรีวิว</p>
+  {{else if .hasReviewed}}
+    <p class="muted">คุณรีวิวสินค้านี้แล้ว (แก้ไขหรือลบได้จากรีวิวของคุณด้านบน)</p>
+  {{else}}
+    <form method="POST" action="/shoe/{{.shoe.ID}}/review" class="stack">
+      <input type="hidden" name="csrf_token" value="{{$.csrf}}">
+      <label>คะแนน</label>
+      <select name="rating" required>
+        {{range $i := .ratingOptions}}<option value="{{$i}}" {{if eq $i $.rating}}selected{{end}}>{{$i}} ดาว</option>{{end}}
+      </select>
+      <label>ความคิดเห็น</label>
+      <textarea name="comment" rows="3" required maxlength="500">{{.comment}}</textarea>
+      <button type="submit" class="btn btn-dark">บันทึกรีวิว</button>
+    </form>
+  {{end}}
+</section>
+{{template "footer" .}}

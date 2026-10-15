@@ -1,0 +1,31 @@
+{{template "header" .}}
+<h1 class="page-title">คำสั่งซื้อของฉัน</h1>
+<div class="card table-wrap">
+  <table>
+    <thead><tr><th>#</th><th>สินค้า</th><th>ไซส์</th><th>ราคา</th><th>จัดส่งที่</th><th>สถานะ</th><th>วันที่</th><th></th></tr></thead>
+    <tbody>
+      {{range .orders}}
+      <tr>
+        <td>{{.ID}}</td>
+        <td>{{if .Shoe.ID}}<a href="/shoe/{{.Shoe.ID}}">{{.Shoe.Name}}</a>{{else}}<span class="muted">สินค้าถูกลบ</span>{{end}}</td>
+        <td>{{.Size}}</td>
+        <td>฿{{printf "%.2f" .Price}}</td>
+        <td class="pre small">{{.Address}}<br>{{.Phone}}</td>
+        <td><span class="badge {{statusClass .Status}}">{{statusText .Status}}</span></td>
+        <td class="small">{{.CreatedAt.Format "02/01/2006 15:04"}}</td>
+        <td>
+          {{if eq .Status "pending"}}
+          <form method="POST" action="/my-orders/{{.ID}}/cancel" data-confirm="ต้องการยกเลิกคำสั่งซื้อนี้ใช่หรือไม่?">
+            <input type="hidden" name="csrf_token" value="{{$.csrf}}">
+            <button type="submit" class="btn btn-danger btn-sm">ยกเลิก</button>
+          </form>
+          {{end}}
+        </td>
+      </tr>
+      {{else}}
+      <tr><td colspan="8" class="empty">ยังไม่มีคำสั่งซื้อ</td></tr>
+      {{end}}
+    </tbody>
+  </table>
+</div>
+{{template "footer" .}}

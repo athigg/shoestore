@@ -1,0 +1,19 @@
+{{template "header" .}}
+<div class="card pad narrow">
+  <h1 class="page-title">สมัครสมาชิก</h1>
+  {{if .error}}<div class="alert alert-error">{{.error}}</div>{{end}}
+  <form method="POST" action="/register" class="stack">
+    <input type="hidden" name="csrf_token" value="{{$.csrf}}">
+    <label>ชื่อผู้ใช้ <span class="muted small">(a-z, 0-9, _ ยาว 3-20 ตัว)</span></label>
+    <input type="text" name="username" value="{{.fUsername}}" required minlength="3" maxlength="20" autocomplete="username">
+    <label>อีเมล</label>
+    <input type="email" name="email" value="{{.fEmail}}" required maxlength="100" autocomplete="email">
+    <label>รหัสผ่าน <span class="muted small">(8-72 ตัว มีทั้งตัวอักษรและตัวเลข)</span></label>
+    <input type="password" name="password" required minlength="8" maxlength="72" autocomplete="new-password">
+    <label>ยืนยันรหัสผ่าน</label>
+    <input type="password" name="confirm" required minlength="8" maxlength="72" autocomplete="new-password">
+    <button type="submit" class="btn btn-primary">สมัครสมาชิก</button>
+  </form>
+  <p class="muted center">มีบัญชีอยู่แล้ว? <a href="/login">เข้าสู่ระบบ</a></p>
+</div>
+{{template "footer" .}}

@@ -1,0 +1,15 @@
+{{template "header" .}}
+<div class="card pad narrow">
+  <h1 class="page-title">เข้าสู่ระบบ</h1>
+  {{if .error}}<div class="alert alert-error">{{.error}}</div>{{end}}
+  <form method="POST" action="/login" class="stack">
+    <input type="hidden" name="csrf_token" value="{{$.csrf}}">
+    <label>ชื่อผู้ใช้</label>
+    <input type="text" name="username" value="{{.fUsername}}" required maxlength="30" autocomplete="username">
+    <label>รหัสผ่าน</label>
+    <input type="password" name="password" required maxlength="200" autocomplete="current-password">
+    <button type="submit" class="btn btn-primary">เข้าสู่ระบบ</button>
+  </form>
+  <p class="muted center">ยังไม่มีบัญชี? <a href="/register">สมัครสมาชิก</a></p>
+</div>
+{{template "footer" .}}

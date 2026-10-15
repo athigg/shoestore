@@ -1,0 +1,22 @@
+{{template "header" .}}
+<div class="card pad narrow">
+  <h1 class="page-title">แก้ไขผู้ใช้งาน</h1>
+  {{if .error}}<div class="alert alert-error">{{.error}}</div>{{end}}
+  <form method="POST" action="/admin/user/{{.target.ID}}/update" class="stack">
+    <input type="hidden" name="csrf_token" value="{{$.csrf}}">
+    <label>ชื่อผู้ใช้</label>
+    <input type="text" name="username" value="{{.target.Username}}" required minlength="3" maxlength="20">
+    <label>อีเมล</label>
+    <input type="email" name="email" value="{{.target.Email}}" required maxlength="100">
+    <label>บทบาท</label>
+    <select name="role">
+      <option value="user" {{if eq .target.Role "user"}}selected{{end}}>user (ผู้ใช้ทั่วไป)</option>
+      <option value="admin" {{if eq .target.Role "admin"}}selected{{end}}>admin (ผู้ดูแลระบบ)</option>
+    </select>
+    <div class="actions">
+      <button type="submit" class="btn btn-primary">บันทึก</button>
+      <a class="btn btn-outline" href="/admin/users">ยกเลิก</a>
+    </div>
+  </form>
+</div>
+{{template "footer" .}}

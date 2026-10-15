@@ -1,0 +1,32 @@
+{{template "header" .}}
+<h1 class="page-title">รองเท้าทั้งหมด</h1>
+<form method="GET" action="/" class="card pad filter">
+  <input type="text" name="search" value="{{.search}}" placeholder="ค้นหาชื่อรองเท้า..." maxlength="100">
+  <select name="brand">
+    <option value="">ทุกแบรนด์</option>
+    {{range .brands}}<option value="{{.}}" {{if eq $.selectedBrand .}}selected{{end}}>{{.}}</option>{{end}}
+  </select>
+  <button type="submit" class="btn btn-dark">ค้นหา</button>
+</form>
+
+<div class="grid">
+  {{range .shoes}}
+  <article class="card shoe">
+    <a href="/shoe/{{.ID}}">
+      {{if .ImageURL}}<img class="shoe-img" src="{{.ImageURL}}" alt="{{.Name}}">{{else}}<div class="shoe-img placeholder">ไม่มีรูปภาพ</div>{{end}}
+    </a>
+    <div class="shoe-body">
+      <span class="badge">{{.Brand}}</span>
+      <h3><a href="/shoe/{{.ID}}">{{.Name}}</a></h3>
+      <p class="muted clamp">{{.Description}}</p>
+    </div>
+    <div class="shoe-foot">
+      <span class="price">฿{{printf "%.2f" .Price}}</span>
+      <span class="muted small">{{if gt .TotalStock 0}}เหลือ {{.TotalStock}} คู่{{else}}สินค้าหมด{{end}}</span>
+    </div>
+  </article>
+  {{else}}
+  <p class="empty">ไม่พบสินค้า</p>
+  {{end}}
+</div>
+{{template "footer" .}}

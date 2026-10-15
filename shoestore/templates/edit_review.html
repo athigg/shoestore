@@ -1,0 +1,19 @@
+{{template "header" .}}
+<div class="card pad narrow">
+  <h1 class="page-title">แก้ไขรีวิวของฉัน</h1>
+  {{if .error}}<div class="alert alert-error">{{.error}}</div>{{end}}
+  <form method="POST" action="/review/{{.review.ID}}/update" class="stack">
+    <input type="hidden" name="csrf_token" value="{{$.csrf}}">
+    <label>คะแนน</label>
+    <select name="rating" required>
+      {{range $i := .ratingOptions}}<option value="{{$i}}" {{if eq $i $.review.Rating}}selected{{end}}>{{$i}} ดาว</option>{{end}}
+    </select>
+    <label>ความคิดเห็น</label>
+    <textarea name="comment" rows="4" required maxlength="500">{{.review.Comment}}</textarea>
+    <div class="actions">
+      <button type="submit" class="btn btn-primary">บันทึก</button>
+      <a class="btn btn-outline" href="/shoe/{{.review.ShoeID}}">ยกเลิก</a>
+    </div>
+  </form>
+</div>
+{{template "footer" .}}
