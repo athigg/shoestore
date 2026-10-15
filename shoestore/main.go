@@ -1,330 +1,155 @@
 package main
 
 import (
-	"errors"
-	"math"
+	"html/template"
+	"log"
 	"net/http"
-	"strconv"
+	"os"
 	"strings"
+	"time"
 
 	"shoestore/config"
 	"shoestore/models"
 
 	"github.com/gin-gonic/gin"
-	"gorm.io/gorm"
+	"golang.org/x/crypto/bcrypt"
 )
 
-var (
-	errOutOfStock  = errors.New("สินค้าไซส์นี้ไม่พอต่อจำนวนที่ต้องการ")
-	errNotPending  = errors.New("ออเดอร์นี้ไม่อยู่ในสถานะรอดำเนินการ")
-	errCancelledSt = errors.New("ออเดอร์ที่ยกเลิกแล้วไม่สามารถแก้ไขได้")
-)
-
-// ---------- หน้าแรก / รายละเอียดสินค้า ----------
-
-func homePage(c *gin.Context) {
-	search := truncate(strings.TrimSpace(c.Query("search")), 100)
-	brand := truncate(strings.TrimSpace(c.Query("brand")), 100)
-
-	var shoes []models.Shoe
-	q := config.DB.Model(&models.Shoe{}).Preload("Sizes", bySize).Order("id DESC")
-	if search != "" {
-		q = q.Where("name LIKE ?", "%"+search+"%")
-	}
-	if brand != "" {
-		q = q.Where("brand = ?", brand)
-	}
-	q.Find(&shoes)
-
-	var brands []string
-	config.DB.Model(&models.Shoe{}).Distinct().Pluck("brand", &brands)
-
-	render(c, http.StatusOK, "index.html", gin.H{
-		"shoes":         shoes,
-		"brands":        brands,
-		"search":        search,
-		"selectedBrand": brand,
-	})
-}
-
-func shoeDetail(c *gin.Context) {
-	id, ok := paramID(c)
-	if !ok {
-		renderError(c, http.StatusNotFound, "ไม่พบสินค้า")
-		return
-	}
-	showShoe(c, http.StatusOK, id, nil)
-}
-
-// showShoe สร้างหน้ารายละเอียดสินค้า (ใช้ซ้ำตอนฟอร์มสั่งซื้อ/รีวิวมีข้อผิดพลาด)
-func showShoe(c *gin.Context, status int, id uint, extra gin.H) {
-	var shoe models.Shoe
-	if err := config.DB.Preload("Sizes", bySize).First(&shoe, id).Error; err != nil {
-		renderError(c, http.StatusNotFound, "ไม่พบสินค้า")
-		return
-	}
-
-	var reviews []models.Review
-	config.DB.Preload("User", unscoped).Where("shoe_id = ?", id).Order("id DESC").Find(&reviews)
-
-	total := 0
-	for _, r := range reviews {
-		total += r.Rating
-	}
-	avg := 0.0
-	if len(reviews) > 0 {
-		avg = float64(total) / float64(len(reviews))
-	}
-
-	hasReviewed := false
-	if u := currentUser(c); u != nil {
-		for _, r := range reviews {
-			if r.UserID == u.ID {
-				hasReviewed = true
-			}
-		}
-	}
-
-	data := gin.H{
-		"shoe":        shoe,
-		"reviews":     reviews,
-		"avg":         avg,
-		"avgInt":      int(math.Round(avg)),
-		"reviewCount": len(reviews),
-		"hasReviewed": hasReviewed,
-		"selSize":     0,
-		"qty":         1, // ค่าเริ่มต้นของจำนวน
-		"addr":        "",
-		"phone":       "",
-		"rating":      5,
-		"comment":     "",
-		"title":       shoe.Name,
-	}
-	for k, v := range extra {
-		data[k] = v
-	}
-	render(c, status, "shoe.html", data)
-}
-
-// ---------- ฟอร์มที่ 1: สั่งซื้อ (ที่อยู่จัดส่ง + เบอร์โทร) ----------
-
-func placeOrder(c *gin.Context) {
-	u := currentUser(c)
-	if u.Role == models.RoleAdmin {
-		renderError(c, http.StatusForbidden, "บัญชีผู้ดูแลระบบไม่สามารถสั่งซื้อสินค้าได้")
-		return
-	}
-
-	shoeID64, err := strconv.ParseUint(c.PostForm("shoe_id"), 10, 32)
-	if err != nil || shoeID64 == 0 {
-		renderError(c, http.StatusBadRequest, "ข้อมูลสินค้าไม่ถูกต้อง")
-		return
-	}
-	shoeID := uint(shoeID64)
-	size, _ := strconv.Atoi(strings.TrimSpace(c.PostForm("size")))
-
-	// รับค่าจำนวนและตั้งค่าป้องกันการกรอกผิด
-	quantity, _ := strconv.Atoi(strings.TrimSpace(c.PostForm("quantity")))
-	if quantity < 1 {
-		quantity = 1
-	}
-
-	addr := strings.TrimSpace(c.PostForm("address"))
-	phone := strings.TrimSpace(c.PostForm("phone"))
-
-	fail := func(msg string) {
-		showShoe(c, http.StatusBadRequest, shoeID, gin.H{"orderError": msg, "selSize": size, "qty": quantity, "addr": addr, "phone": phone})
-	}
-
-	if size < 30 || size > 60 {
-		fail("กรุณาเลือกไซส์รองเท้า")
-		return
-	}
-	if quantity > 10 { // ป้องกันคนสั่งเล่นทีละมากๆ สามารถแก้เป็นตัวเลขอื่นได้
-		fail("สั่งซื้อได้สูงสุด 10 คู่ต่อ 1 คำสั่งซื้อ")
-		return
-	}
-	if n := runeLen(addr); n < 10 || n > 300 {
-		fail("ที่อยู่จัดส่งต้องมีความยาว 10-300 ตัวอักษร")
-		return
-	}
-	if !phoneRe.MatchString(phone) {
-		fail("เบอร์โทรไม่ถูกต้อง (ตัวเลข 8-15 หลัก)")
-		return
-	}
-
-	var shoe models.Shoe
-	if err := config.DB.First(&shoe, shoeID).Error; err != nil {
-		renderError(c, http.StatusNotFound, "ไม่พบสินค้า")
-		return
-	}
-
-	// คำนวณราคารวม (ราคารองเท้าต่อคู่ * จำนวน)
-	totalPrice := shoe.Price * float64(quantity)
-
-	// หักสต็อกแบบ atomic ตามจำนวน quantity ที่สั่ง
-	err = config.DB.Transaction(func(tx *gorm.DB) error {
-		res := tx.Model(&models.ShoeSize{}).
-			Where("shoe_id = ? AND size = ? AND stock >= ?", shoe.ID, size, quantity).
-			Update("stock", gorm.Expr("stock - ?", quantity))
-		if res.Error != nil {
-			return res.Error
-		}
-		if res.RowsAffected == 0 {
-			return errOutOfStock
-		}
-		order := models.Order{
-			UserID: u.ID, ShoeID: shoe.ID, Size: size, Quantity: quantity, // บันทึกจำนวน
-			Price:   totalPrice, // บันทึกราคารวม
-			Address: addr, Phone: phone, Status: "pending",
-		}
-		return tx.Create(&order).Error
-	})
-	if err != nil {
-		if errors.Is(err, errOutOfStock) {
-			fail(err.Error())
-		} else {
-			renderError(c, http.StatusInternalServerError, "ไม่สามารถบันทึกคำสั่งซื้อได้")
-		}
-		return
-	}
-	setFlash(c, "ok", "สั่งซื้อสำเร็จ! ขอบคุณที่ใช้บริการ")
-	c.Redirect(http.StatusSeeOther, "/my-orders")
-}
-
-func myOrders(c *gin.Context) {
-	u := currentUser(c)
-	var orders []models.Order
-	config.DB.Preload("Shoe", unscoped).Where("user_id = ?", u.ID).Order("id DESC").Find(&orders)
-	render(c, http.StatusOK, "my_orders.html", gin.H{"orders": orders})
-}
-
-func cancelOrder(c *gin.Context) {
-	u := currentUser(c)
-	id, ok := paramID(c)
-	var order models.Order
-	// ตรวจความเป็นเจ้าของ: ต้องเป็นออเดอร์ของผู้ใช้คนนี้เท่านั้น
-	if !ok || config.DB.Where("id = ? AND user_id = ?", id, u.ID).First(&order).Error != nil {
-		renderError(c, http.StatusNotFound, "ไม่พบคำสั่งซื้อ")
-		return
-	}
-	err := config.DB.Transaction(func(tx *gorm.DB) error {
-		res := tx.Model(&models.Order{}).Where("id = ? AND status = ?", order.ID, "pending").Update("status", "cancelled")
-		if res.Error != nil {
-			return res.Error
-		}
-		if res.RowsAffected == 0 {
-			return errNotPending
-		}
-
-		// คืนสต็อกตามจำนวน quantity ของออเดอร์นั้น
-		return tx.Model(&models.ShoeSize{}).
-			Where("shoe_id = ? AND size = ?", order.ShoeID, order.Size).
-			Update("stock", gorm.Expr("stock + ?", order.Quantity)).Error
-	})
-	if err != nil {
-		setFlash(c, "err", err.Error())
-	} else {
-		setFlash(c, "ok", "ยกเลิกคำสั่งซื้อเรียบร้อยแล้ว")
-	}
-	c.Redirect(http.StatusSeeOther, "/my-orders")
-}
-
-// ---------- ฟอร์มที่ 2: รีวิวสินค้า (CRUD ที่มีเจ้าของ) ----------
-
-func parseReview(c *gin.Context) (int, string, string) {
-	rating, _ := strconv.Atoi(c.PostForm("rating"))
-	comment := strings.TrimSpace(c.PostForm("comment"))
-	if rating < 1 || rating > 5 {
-		return rating, comment, "กรุณาเลือกคะแนน 1-5 ดาว"
-	}
-	if n := runeLen(comment); n < 1 || n > 500 {
-		return rating, comment, "ความคิดเห็นต้องมีความยาว 1-500 ตัวอักษร"
-	}
-	return rating, comment, ""
-}
-
-func createReview(c *gin.Context) {
-	u := currentUser(c)
-	shoeID, ok := paramID(c)
-	if !ok {
-		renderError(c, http.StatusNotFound, "ไม่พบสินค้า")
-		return
-	}
-	var shoe models.Shoe
-	if err := config.DB.First(&shoe, shoeID).Error; err != nil {
-		renderError(c, http.StatusNotFound, "ไม่พบสินค้า")
-		return
-	}
-	rating, comment, msg := parseReview(c)
-	if msg != "" {
-		showShoe(c, http.StatusBadRequest, shoeID, gin.H{"reviewError": msg, "rating": rating, "comment": comment})
-		return
-	}
+// seedAdmin สร้างบัญชีแอดมินเริ่มต้นเมื่อยังไม่มีแอดมินในระบบ
+func seedAdmin() {
 	var count int64
-	config.DB.Model(&models.Review{}).Where("user_id = ? AND shoe_id = ?", u.ID, shoeID).Count(&count)
+	config.DB.Model(&models.User{}).Where("role = ?", models.RoleAdmin).Count(&count)
 	if count > 0 {
-		showShoe(c, http.StatusBadRequest, shoeID, gin.H{"reviewError": "คุณรีวิวสินค้านี้ไปแล้ว (สามารถแก้ไขรีวิวเดิมได้)", "rating": rating, "comment": comment})
 		return
 	}
-	review := models.Review{UserID: u.ID, ShoeID: shoeID, Rating: rating, Comment: comment}
-	if err := config.DB.Create(&review).Error; err != nil {
-		renderError(c, http.StatusInternalServerError, "ไม่สามารถบันทึกรีวิวได้")
+	username := config.Getenv("ADMIN_USERNAME", "admin")
+	email := config.Getenv("ADMIN_EMAIL", "admin@example.com")
+	password := os.Getenv("ADMIN_PASSWORD")
+	generated := false
+	if len(password) < 8 {
+		password = randomToken(9)
+		generated = true
+	}
+	u := models.User{Username: username, Email: email, Role: models.RoleAdmin}
+	if err := u.HashPassword(password); err != nil {
+		log.Fatal(err)
+	}
+	if err := config.DB.Create(&u).Error; err != nil {
+		log.Println("ไม่สามารถสร้างบัญชีแอดมินเริ่มต้นได้:", err)
 		return
 	}
-	setFlash(c, "ok", "บันทึกรีวิวเรียบร้อยแล้ว")
-	c.Redirect(http.StatusSeeOther, "/shoe/"+strconv.FormatUint(uint64(shoeID), 10))
+	if generated {
+		log.Printf("สร้างบัญชีแอดมินแล้ว  username=%s  password=%s  (แสดงครั้งเดียว กรุณาเปลี่ยน/จดไว้)", username, password)
+	} else {
+		log.Printf("สร้างบัญชีแอดมินแล้ว  username=%s", username)
+	}
 }
 
-// findOwnReview หารีวิวที่เป็นของผู้ใช้ปัจจุบันเท่านั้น (กัน IDOR)
-func findOwnReview(c *gin.Context) (*models.Review, bool) {
-	u := currentUser(c)
-	id, ok := paramID(c)
-	var rv models.Review
-	if !ok || config.DB.Where("id = ? AND user_id = ?", id, u.ID).First(&rv).Error != nil {
-		renderError(c, http.StatusNotFound, "ไม่พบรีวิว หรือคุณไม่มีสิทธิ์แก้ไขรีวิวนี้")
-		return nil, false
-	}
-	return &rv, true
+func startCleanup() {
+	go func() {
+		t := time.NewTicker(time.Hour)
+		for range t.C {
+			config.DB.Where("expires_at < ?", time.Now()).Delete(&models.Session{})
+			loginUserLimiter.purge()
+			loginIPLimiter.purge()
+			registerLimiter.purge()
+		}
+	}()
 }
 
-func editReviewPage(c *gin.Context) {
-	rv, ok := findOwnReview(c)
-	if !ok {
-		return
+func main() {
+	secureCookies = config.Getenv("COOKIE_SECURE", "false") == "true"
+	if err := os.MkdirAll("uploads", 0o755); err != nil {
+		log.Fatal(err)
 	}
-	render(c, http.StatusOK, "edit_review.html", gin.H{"review": rv})
-}
 
-func updateReview(c *gin.Context) {
-	rv, ok := findOwnReview(c)
-	if !ok {
-		return
+	config.ConnectDB()
+	if err := config.DB.AutoMigrate(
+		&models.User{}, &models.Shoe{}, &models.ShoeSize{},
+		&models.Order{}, &models.Review{}, &models.Session{},
+	); err != nil {
+		log.Fatal("AutoMigrate failed: ", err)
 	}
-	rating, comment, msg := parseReview(c)
-	if msg != "" {
-		rv.Rating, rv.Comment = rating, comment
-		render(c, http.StatusBadRequest, "edit_review.html", gin.H{"review": rv, "error": msg})
-		return
-	}
-	config.DB.Model(rv).Updates(map[string]interface{}{"rating": rating, "comment": comment})
-	setFlash(c, "ok", "แก้ไขรีวิวเรียบร้อยแล้ว")
-	c.Redirect(http.StatusSeeOther, "/shoe/"+strconv.FormatUint(uint64(rv.ShoeID), 10))
-}
+	seedAdmin()
+	startCleanup()
 
-func deleteReview(c *gin.Context) {
-	u := currentUser(c)
-	id, ok := paramID(c)
-	var rv models.Review
-	q := config.DB.Where("id = ?", id)
-	if u.Role != models.RoleAdmin { // ผู้ใช้ทั่วไปลบได้เฉพาะของตัวเอง, แอดมินลบได้ทุกรีวิว (ดูแลเนื้อหา)
-		q = q.Where("user_id = ?", u.ID)
+	var err error
+	dummyHash, err = bcrypt.GenerateFromPassword([]byte(randomToken(12)), models.BcryptCost)
+	if err != nil {
+		log.Fatal(err)
 	}
-	if !ok || q.First(&rv).Error != nil {
-		renderError(c, http.StatusNotFound, "ไม่พบรีวิว หรือคุณไม่มีสิทธิ์ลบรีวิวนี้")
-		return
+
+	r := gin.New()
+	r.Use(gin.Logger(), gin.Recovery(), securityHeaders())
+
+	// เชื่อถือ X-Forwarded-For เฉพาะ proxy ที่ระบุเท่านั้น (เช่น TRUSTED_PROXIES=127.0.0.1)
+	var proxies []string
+	if v := strings.TrimSpace(os.Getenv("TRUSTED_PROXIES")); v != "" {
+		for _, p := range strings.Split(v, ",") {
+			proxies = append(proxies, strings.TrimSpace(p))
+		}
 	}
-	config.DB.Delete(&rv)
-	setFlash(c, "ok", "ลบรีวิวเรียบร้อยแล้ว")
-	c.Redirect(http.StatusSeeOther, "/shoe/"+strconv.FormatUint(uint64(rv.ShoeID), 10))
+	if err := r.SetTrustedProxies(proxies); err != nil {
+		log.Fatal(err)
+	}
+
+	r.MaxMultipartMemory = 8 << 20
+	r.SetFuncMap(template.FuncMap(funcMap))
+	r.LoadHTMLGlob("templates/*")
+
+	r.Static("/static", "./static")
+	r.Static("/uploads", "./uploads")
+
+	r.Use(sessionMiddleware(), csrfMiddleware())
+
+	// ---- สาธารณะ ----
+	r.GET("/", homePage)
+	r.GET("/shoe/:id", shoeDetail)
+	r.GET("/login", loginPage)
+	r.POST("/login", loginSubmit)
+	r.GET("/register", registerPage)
+	r.POST("/register", registerSubmit)
+	r.POST("/logout", logoutSubmit)
+
+	// ---- ต้องล็อกอิน (user และ admin) ----
+	auth := r.Group("", requireLogin())
+	auth.POST("/order", placeOrder)
+	auth.GET("/my-orders", myOrders)
+	auth.POST("/my-orders/:id/cancel", cancelOrder)
+	auth.POST("/shoe/:id/review", createReview)
+	auth.GET("/review/:id/edit", editReviewPage)
+	auth.POST("/review/:id/update", updateReview)
+	auth.POST("/review/:id/delete", deleteReview)
+
+	// ---- เฉพาะผู้ดูแลระบบ ----
+	admin := r.Group("/admin", requireAdmin())
+	admin.GET("", func(c *gin.Context) { c.Redirect(http.StatusSeeOther, "/admin/panel") })
+	admin.GET("/panel", adminPanel)
+	admin.POST("/shoe/add", adminShoeAdd)
+	admin.GET("/shoe/:id/edit", adminShoeEditPage)
+	admin.POST("/shoe/:id/update", adminShoeUpdate)
+	admin.POST("/shoe/:id/delete", adminShoeDelete)
+	admin.GET("/orders", adminOrders)
+	admin.POST("/order/:id/status", adminOrderStatus)
+	admin.POST("/order/:id/delete", adminOrderDelete)
+	admin.GET("/users", adminUsers)
+	admin.GET("/user/:id/edit", adminUserEditPage)
+	admin.POST("/user/:id/update", adminUserUpdate)
+	admin.POST("/user/:id/delete", adminUserDelete)
+
+	r.NoRoute(func(c *gin.Context) {
+		renderError(c, http.StatusNotFound, "ไม่พบหน้าที่คุณต้องการ")
+	})
+
+	port := config.Getenv("PORT", "8080")
+	srv := &http.Server{
+		Addr:              ":" + port,
+		Handler:           r,
+		ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout:       30 * time.Second,
+		WriteTimeout:      30 * time.Second,
+		IdleTimeout:       60 * time.Second,
+	}
+	log.Println("Shoestore กำลังทำงานที่พอร์ต", port)
+	log.Fatal(srv.ListenAndServe())
 }
