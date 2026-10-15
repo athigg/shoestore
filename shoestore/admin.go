@@ -26,7 +26,7 @@ func renderAdminPanel(c *gin.Context, status int, extra gin.H) {
 	data := gin.H{
 		"shoes": shoes, "sizes": shoeSizes,
 		"nUsers": users, "nOrders": orders, "nShoes": shoeCount,
-		"fName": "", "fBrand": "", "fPrice": "", "fDesc": "", "fImageURL": "",
+		"fName": "", "fBrand": "", "fPrice": "", "fDesc": "",
 	}
 	for k, v := range extra {
 		data[k] = v
@@ -129,6 +129,7 @@ func adminShoeUpdate(c *gin.Context) {
 		}).Error; err != nil {
 			return err
 		}
+		// อัปเดตสต็อกของแต่ละไซส์ (ไม่ลบแล้วสร้างใหม่ เพื่อไม่ให้ข้อมูลซ้ำซ้อน)
 		for i, sz := range shoeSizes {
 			var ss models.ShoeSize
 			e := tx.Where("shoe_id = ? AND size = ?", shoe.ID, sz).First(&ss).Error
@@ -193,7 +194,7 @@ func adminOrderStatus(c *gin.Context) {
 			return errCancelledSt
 		}
 		if status == "cancelled" {
-			if err := restoreStock(tx, o.ShoeID, o.Size); err != nil {
+			if err := restoreStock(tx, o.ShoeID, o.Size, o.Quantity); err != nil {
 				return err
 			}
 		}
@@ -223,7 +224,7 @@ func adminOrderDelete(c *gin.Context) {
 			return err
 		}
 		if o.Status == "pending" || o.Status == "shipped" {
-			if err := restoreStock(tx, o.ShoeID, o.Size); err != nil {
+			if err := restoreStock(tx, o.ShoeID, o.Size, o.Quantity); err != nil {
 				return err
 			}
 		}

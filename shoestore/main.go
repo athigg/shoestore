@@ -16,6 +16,7 @@ import (
 )
 
 // seedAdmin สร้างบัญชีแอดมินเริ่มต้นเมื่อยังไม่มีแอดมินในระบบ
+// (แทนวิธีเดิมที่ "คนแรกที่สมัครได้เป็นแอดมิน" ซึ่งใครมาก่อนก็ยึดระบบได้)
 func seedAdmin() {
 	var count int64
 	config.DB.Model(&models.User{}).Where("role = ?", models.RoleAdmin).Count(&count)
@@ -66,7 +67,7 @@ func main() {
 	config.ConnectDB()
 	if err := config.DB.AutoMigrate(
 		&models.User{}, &models.Shoe{}, &models.ShoeSize{},
-		&models.Order{}, &models.Review{}, &models.Session{},
+		&models.Order{}, &models.Review{}, &models.Session{}, &models.Image{},
 	); err != nil {
 		log.Fatal("AutoMigrate failed: ", err)
 	}
@@ -99,6 +100,18 @@ func main() {
 
 	r.Static("/static", "./static")
 	r.Static("/uploads", "./uploads")
+
+	// แสดงรูปสินค้าที่เก็บในฐานข้อมูล
+	r.GET("/img/:id", func(c *gin.Context) {
+		id, ok := paramID(c)
+		var img models.Image
+		if !ok || config.DB.First(&img, id).Error != nil {
+			c.Status(http.StatusNotFound)
+			return
+		}
+		c.Header("Cache-Control", "public, max-age=86400")
+		c.Data(http.StatusOK, img.ContentType, img.Data)
+	})
 
 	r.Use(sessionMiddleware(), csrfMiddleware())
 

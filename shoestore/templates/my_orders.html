@@ -9,7 +9,7 @@
         <td>{{.ID}}</td>
         <td>{{if .Shoe.ID}}<a href="/shoe/{{.Shoe.ID}}">{{.Shoe.Name}}</a>{{else}}<span class="muted">สินค้าถูกลบ</span>{{end}}</td>
         <td>{{.Size}}</td>
-        <td>{{.Quantity}} คู่</td>
+        <td>{{.Quantity}}</td>
         <td>฿{{printf "%.2f" .Price}}</td>
         <td class="pre small">{{.Address}}<br>{{.Phone}}</td>
         <td><span class="badge {{statusClass .Status}}">{{statusText .Status}}</span></td>

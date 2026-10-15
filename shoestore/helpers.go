@@ -172,15 +172,18 @@ func truncate(s string, n int) string {
 func bySize(db *gorm.DB) *gorm.DB   { return db.Order("size ASC") }
 func unscoped(db *gorm.DB) *gorm.DB { return db.Unscoped() }
 
-// restoreStock คืนสต็อก 1 คู่ (ใช้ตอนยกเลิก/ลบออเดอร์)
-func restoreStock(tx *gorm.DB, shoeID uint, size int) error {
+// restoreStock คืนสต็อกตามจำนวนคู่ที่สั่ง (ใช้ตอนยกเลิก/ลบออเดอร์)
+func restoreStock(tx *gorm.DB, shoeID uint, size int, qty int) error {
+	if qty < 1 {
+		qty = 1
+	}
 	return tx.Model(&models.ShoeSize{}).
 		Where("shoe_id = ? AND size = ?", shoeID, size).
-		Update("stock", gorm.Expr("stock + 1")).Error
+		Update("stock", gorm.Expr("stock + ?", qty)).Error
 }
 
-// saveImage ตรวจชนิดไฟล์จากเนื้อหาจริง (ไม่เชื่อนามสกุลที่ผู้ใช้ส่งมา) และตั้งชื่อไฟล์แบบสุ่ม
-// คืนค่า "" ถ้าไม่มีไฟล์แนบ
+// saveImage เก็บรูปลงฐานข้อมูล (ไม่หายเมื่อ deploy ใหม่บน Render)
+// ตรวจชนิดไฟล์จากเนื้อหาจริง ไม่เชื่อนามสกุลที่ผู้ใช้ส่งมา คืนค่า "" ถ้าไม่มีไฟล์แนบ
 func saveImage(c *gin.Context, field string) (string, error) {
 	fh, err := c.FormFile(field)
 	if err != nil {
@@ -195,20 +198,28 @@ func saveImage(c *gin.Context, field string) (string, error) {
 	}
 	defer f.Close()
 
-	buf := make([]byte, 512)
-	n, _ := io.ReadFull(f, buf)
-	ext, ok := allowedImages[http.DetectContentType(buf[:n])]
-	if !ok {
+	data, err := io.ReadAll(io.LimitReader(f, maxImageBytes+1))
+	if err != nil || len(data) > maxImageBytes {
+		return "", errors.New("อ่านไฟล์รูปไม่สำเร็จ หรือไฟล์ใหญ่เกิน 3 MB")
+	}
+	ctype := http.DetectContentType(data)
+	if _, ok := allowedImages[ctype]; !ok {
 		return "", errors.New("รองรับเฉพาะไฟล์รูป JPG, PNG, GIF และ WEBP")
 	}
-	name := randomHex(16) + ext
-	if err := c.SaveUploadedFile(fh, filepath.Join("uploads", name)); err != nil {
+	img := models.Image{ContentType: ctype, Data: data}
+	if err := config.DB.Create(&img).Error; err != nil {
 		return "", errors.New("บันทึกไฟล์รูปไม่สำเร็จ")
 	}
-	return "/uploads/" + name, nil
+	return "/img/" + strconv.FormatUint(uint64(img.ID), 10), nil
 }
 
 func removeImage(url string) {
+	if strings.HasPrefix(url, "/img/") {
+		if id, err := strconv.ParseUint(strings.TrimPrefix(url, "/img/"), 10, 32); err == nil {
+			config.DB.Delete(&models.Image{}, uint(id))
+		}
+		return
+	}
 	if strings.HasPrefix(url, "/uploads/") {
 		_ = os.Remove(filepath.Join("uploads", filepath.Base(url)))
 	}

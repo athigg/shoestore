@@ -69,11 +69,11 @@ type Order struct {
 	ShoeID   uint
 	Shoe     Shoe
 	Size     int
-	Quantity int     // เพิ่มฟิลด์นี้: สำหรับเก็บจำนวนคู่
-	Price    float64 // เก็บราคารวม (ราคารองเท้า x จำนวน)
-	Address  string  `gorm:"size:500"`
-	Phone    string  `gorm:"size:20"`
-	Status   string  `gorm:"size:20;default:pending"`
+	Quantity int `gorm:"default:1"`
+	Price    float64
+	Address  string `gorm:"size:500"`
+	Phone    string `gorm:"size:20"`
+	Status   string `gorm:"size:20;default:pending"`
 }
 
 // Review คือข้อมูลที่มี "เจ้าของ" (UserID) เจ้าของเท่านั้นที่แก้ไข/ลบได้
@@ -94,4 +94,12 @@ type Session struct {
 	Flash     string    `gorm:"size:300"`
 	ExpiresAt time.Time `gorm:"index"`
 	CreatedAt time.Time
+}
+
+// Image เก็บรูปสินค้าในฐานข้อมูล (ไม่หายเมื่อ deploy ใหม่)
+type Image struct {
+	ID          uint   `gorm:"primaryKey"`
+	ContentType string `gorm:"size:50"`
+	Data        []byte `gorm:"type:longblob"`
+	CreatedAt   time.Time
 }

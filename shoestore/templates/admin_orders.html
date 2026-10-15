@@ -2,7 +2,7 @@
 <h1 class="page-title">ออเดอร์ทั้งหมด (Admin)</h1>
 <div class="card table-wrap">
   <table>
-    <thead><tr><th>#</th><th>ผู้สั่ง</th><th>สินค้า</th><th>ไซส์</th><th>ราคา</th><th>จัดส่งที่</th><th>วันที่</th><th>สถานะ</th><th></th></tr></thead>
+    <thead><tr><th>#</th><th>ผู้สั่ง</th><th>สินค้า</th><th>ไซส์</th><th>จำนวน</th><th>ราคารวม</th><th>จัดส่งที่</th><th>วันที่</th><th>สถานะ</th><th></th></tr></thead>
     <tbody>
       {{range .orders}}
       <tr>
@@ -10,6 +10,7 @@
         <td>{{if .User.Username}}{{.User.Username}}{{else}}<span class="muted">ผู้ใช้ที่ถูกลบ</span>{{end}}</td>
         <td>{{if .Shoe.Name}}{{.Shoe.Name}}{{else}}<span class="muted">สินค้าถูกลบ</span>{{end}}</td>
         <td>{{.Size}}</td>
+        <td>{{.Quantity}}</td>
         <td>฿{{printf "%.2f" .Price}}</td>
         <td class="pre small">{{.Address}}<br>{{.Phone}}</td>
         <td class="small">{{.CreatedAt.Format "02/01/2006 15:04"}}</td>
@@ -37,7 +38,7 @@
         </td>
       </tr>
       {{else}}
-      <tr><td colspan="9" class="empty">ยังไม่มีออเดอร์</td></tr>
+      <tr><td colspan="10" class="empty">ยังไม่มีออเดอร์</td></tr>
       {{end}}
     </tbody>
   </table>
