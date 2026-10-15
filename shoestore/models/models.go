@@ -64,15 +64,16 @@ func (s Shoe) TotalStock() int {
 // Order: สถานะ pending | shipped | completed | cancelled
 type Order struct {
 	gorm.Model
-	UserID  uint
-	User    User
-	ShoeID  uint
-	Shoe    Shoe
-	Size    int
-	Price   float64
-	Address string `gorm:"size:500"`
-	Phone   string `gorm:"size:20"`
-	Status  string `gorm:"size:20;default:pending"`
+	UserID   uint
+	User     User
+	ShoeID   uint
+	Shoe     Shoe
+	Size     int
+	Quantity int     // เพิ่มฟิลด์นี้: สำหรับเก็บจำนวนคู่
+	Price    float64 // เก็บราคารวม (ราคารองเท้า x จำนวน)
+	Address  string  `gorm:"size:500"`
+	Phone    string  `gorm:"size:20"`
+	Status   string  `gorm:"size:20;default:pending"`
 }
 
 // Review คือข้อมูลที่มี "เจ้าของ" (UserID) เจ้าของเท่านั้นที่แก้ไข/ลบได้

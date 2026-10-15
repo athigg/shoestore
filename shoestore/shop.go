@@ -15,7 +15,7 @@ import (
 )
 
 var (
-	errOutOfStock  = errors.New("สินค้าไซส์นี้หมดแล้ว")
+	errOutOfStock  = errors.New("สินค้าไซส์นี้ไม่พอต่อจำนวนที่ต้องการ")
 	errNotPending  = errors.New("ออเดอร์นี้ไม่อยู่ในสถานะรอดำเนินการ")
 	errCancelledSt = errors.New("ออเดอร์ที่ยกเลิกแล้วไม่สามารถแก้ไขได้")
 )
@@ -93,6 +93,7 @@ func showShoe(c *gin.Context, status int, id uint, extra gin.H) {
 		"reviewCount": len(reviews),
 		"hasReviewed": hasReviewed,
 		"selSize":     0,
+		"qty":         1, // ค่าเริ่มต้นของจำนวน
 		"addr":        "",
 		"phone":       "",
 		"rating":      5,
@@ -121,15 +122,26 @@ func placeOrder(c *gin.Context) {
 	}
 	shoeID := uint(shoeID64)
 	size, _ := strconv.Atoi(strings.TrimSpace(c.PostForm("size")))
+
+	// รับค่าจำนวนและตั้งค่าป้องกันการกรอกผิด
+	quantity, _ := strconv.Atoi(strings.TrimSpace(c.PostForm("quantity")))
+	if quantity < 1 {
+		quantity = 1
+	}
+
 	addr := strings.TrimSpace(c.PostForm("address"))
 	phone := strings.TrimSpace(c.PostForm("phone"))
 
 	fail := func(msg string) {
-		showShoe(c, http.StatusBadRequest, shoeID, gin.H{"orderError": msg, "selSize": size, "addr": addr, "phone": phone})
+		showShoe(c, http.StatusBadRequest, shoeID, gin.H{"orderError": msg, "selSize": size, "qty": quantity, "addr": addr, "phone": phone})
 	}
 
 	if size < 30 || size > 60 {
 		fail("กรุณาเลือกไซส์รองเท้า")
+		return
+	}
+	if quantity > 10 { // ป้องกันคนสั่งเล่นทีละมากๆ สามารถแก้เป็นตัวเลขอื่นได้
+		fail("สั่งซื้อได้สูงสุด 10 คู่ต่อ 1 คำสั่งซื้อ")
 		return
 	}
 	if n := runeLen(addr); n < 10 || n > 300 {
@@ -147,11 +159,14 @@ func placeOrder(c *gin.Context) {
 		return
 	}
 
-	// หักสต็อกแบบ atomic ภายใน transaction (กันขายเกินสต็อกเมื่อมีคนสั่งพร้อมกัน)
+	// คำนวณราคารวม (ราคารองเท้าต่อคู่ * จำนวน)
+	totalPrice := shoe.Price * float64(quantity)
+
+	// หักสต็อกแบบ atomic ตามจำนวน quantity ที่สั่ง
 	err = config.DB.Transaction(func(tx *gorm.DB) error {
 		res := tx.Model(&models.ShoeSize{}).
-			Where("shoe_id = ? AND size = ? AND stock > 0", shoe.ID, size).
-			Update("stock", gorm.Expr("stock - 1"))
+			Where("shoe_id = ? AND size = ? AND stock >= ?", shoe.ID, size, quantity).
+			Update("stock", gorm.Expr("stock - ?", quantity))
 		if res.Error != nil {
 			return res.Error
 		}
@@ -159,8 +174,8 @@ func placeOrder(c *gin.Context) {
 			return errOutOfStock
 		}
 		order := models.Order{
-			UserID: u.ID, ShoeID: shoe.ID, Size: size,
-			Price: shoe.Price, // ราคาอ่านจากฐานข้อมูล ไม่เชื่อค่าจากฟอร์ม
+			UserID: u.ID, ShoeID: shoe.ID, Size: size, Quantity: quantity, // บันทึกจำนวน
+			Price:   totalPrice, // บันทึกราคารวม
 			Address: addr, Phone: phone, Status: "pending",
 		}
 		return tx.Create(&order).Error
@@ -201,7 +216,11 @@ func cancelOrder(c *gin.Context) {
 		if res.RowsAffected == 0 {
 			return errNotPending
 		}
-		return restoreStock(tx, order.ShoeID, order.Size)
+
+		// คืนสต็อกตามจำนวน quantity ของออเดอร์นั้น
+		return tx.Model(&models.ShoeSize{}).
+			Where("shoe_id = ? AND size = ?", order.ShoeID, order.Size).
+			Update("stock", gorm.Expr("stock + ?", order.Quantity)).Error
 	})
 	if err != nil {
 		setFlash(c, "err", err.Error())

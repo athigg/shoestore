@@ -2,13 +2,14 @@
 <h1 class="page-title">คำสั่งซื้อของฉัน</h1>
 <div class="card table-wrap">
   <table>
-    <thead><tr><th>#</th><th>สินค้า</th><th>ไซส์</th><th>ราคา</th><th>จัดส่งที่</th><th>สถานะ</th><th>วันที่</th><th></th></tr></thead>
+    <thead><tr><th>#</th><th>สินค้า</th><th>ไซส์</th><th>จำนวน</th><th>ราคารวม</th><th>จัดส่งที่</th><th>สถานะ</th><th>วันที่</th><th></th></tr></thead>
     <tbody>
       {{range .orders}}
       <tr>
         <td>{{.ID}}</td>
         <td>{{if .Shoe.ID}}<a href="/shoe/{{.Shoe.ID}}">{{.Shoe.Name}}</a>{{else}}<span class="muted">สินค้าถูกลบ</span>{{end}}</td>
         <td>{{.Size}}</td>
+        <td>{{.Quantity}} คู่</td>
         <td>฿{{printf "%.2f" .Price}}</td>
         <td class="pre small">{{.Address}}<br>{{.Phone}}</td>
         <td><span class="badge {{statusClass .Status}}">{{statusText .Status}}</span></td>
@@ -23,7 +24,7 @@
         </td>
       </tr>
       {{else}}
-      <tr><td colspan="8" class="empty">ยังไม่มีคำสั่งซื้อ</td></tr>
+      <tr><td colspan="9" class="empty">ยังไม่มีคำสั่งซื้อ</td></tr>
       {{end}}
     </tbody>
   </table>

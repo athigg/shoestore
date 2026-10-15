@@ -13,18 +13,18 @@
     <a class="brand" href="/">SHOESTORE</a>
     <nav class="nav">
       {{if .isLoggedIn}}
-        <span class="who">สวัสดี, <strong>{{.me}}</strong></span>
+        <span class="who"><strong>{{.me}}</strong></span>
         {{if .isAdmin}}
-          <a href="/admin/panel">จัดการสินค้า</a>
-          <a href="/admin/orders">ออเดอร์ทั้งหมด</a>
-          <a href="/admin/users">ผู้ใช้งาน</a>
-        {{else}}
-          <a href="/my-orders">คำสั่งซื้อของฉัน</a>
-        {{end}}
-        <form method="POST" action="/logout" class="inline">
-          <input type="hidden" name="csrf_token" value="{{$.csrf}}">
-          <button type="submit" class="btn btn-danger btn-sm">ออกจากระบบ</button>
-        </form>
+        <a href="/admin/panel" class="btn btn-primary btn-sm">จัดการสินค้า</a>
+        <a href="/admin/orders" class="btn btn-info btn-sm">ออเดอร์ทั้งหมด</a>
+        <a href="/admin/users" class="btn btn-secondary btn-sm">ผู้ใช้งาน</a>
+{{else}}
+  <a href="/my-orders" class="btn btn-success btn-sm">คำสั่งซื้อของฉัน</a>
+{{end}}
+<form method="POST" action="/logout" class="inline">
+  <input type="hidden" name="csrf_token" value="{{$.csrf}}">
+  <button type="submit" class="btn btn-danger btn-sm">ออกจากระบบ</button>
+</form>
       {{else}}
         <a href="/login">เข้าสู่ระบบ</a>
         <a href="/register" class="btn btn-primary btn-sm">สมัครสมาชิก</a>

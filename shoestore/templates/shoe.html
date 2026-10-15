@@ -29,6 +29,10 @@
             {{else}}<option value="{{.Size}}" disabled>ไซส์ {{.Size}} (สินค้าหมด)</option>{{end}}
           {{end}}
         </select>
+        
+        <label>จำนวน (คู่)</label>
+        <input type="number" name="quantity" value="{{if .qty}}{{.qty}}{{else}}1{{end}}" min="1" max="10" required>
+
         <label>ที่อยู่จัดส่ง</label>
         <textarea name="address" rows="3" required minlength="10" maxlength="300">{{.addr}}</textarea>
         <label>เบอร์โทรศัพท์</label>
