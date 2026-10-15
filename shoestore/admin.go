@@ -26,7 +26,7 @@ func renderAdminPanel(c *gin.Context, status int, extra gin.H) {
 	data := gin.H{
 		"shoes": shoes, "sizes": shoeSizes,
 		"nUsers": users, "nOrders": orders, "nShoes": shoeCount,
-		"fName": "", "fBrand": "", "fPrice": "", "fDesc": "",
+		"fName": "", "fBrand": "", "fPrice": "", "fDesc": "", "fImageURL": "",
 	}
 	for k, v := range extra {
 		data[k] = v
@@ -40,18 +40,16 @@ func adminPanel(c *gin.Context) {
 
 func adminShoeAdd(c *gin.Context) {
 	form, msg := parseShoeForm(c)
-	var imageURL string
-	if msg == "" {
-		var err error
-		imageURL, err = saveImage(c, "image")
-		if err != nil {
-			msg = err.Error()
-		}
+	imageURL := strings.TrimSpace(c.PostForm("image_url"))
+
+	if msg == "" && imageURL == "" {
+		msg = "กรุณากรอกลิงก์รูปภาพ"
 	}
+
 	if msg != "" {
 		renderAdminPanel(c, http.StatusBadRequest, gin.H{
 			"error": msg, "fName": form.Name, "fBrand": form.Brand,
-			"fPrice": c.PostForm("price"), "fDesc": form.Description,
+			"fPrice": c.PostForm("price"), "fDesc": form.Description, "fImageURL": imageURL,
 		})
 		return
 	}
@@ -103,24 +101,18 @@ func adminShoeUpdate(c *gin.Context) {
 	}
 
 	form, msg := parseShoeForm(c)
-	var newImage string
-	if msg == "" {
-		var err error
-		newImage, err = saveImage(c, "image")
-		if err != nil {
-			msg = err.Error()
-		}
+	imageURL := strings.TrimSpace(c.PostForm("image_url"))
+
+	if msg == "" && imageURL == "" {
+		msg = "กรุณากรอกลิงก์รูปภาพ"
 	}
+
 	if msg != "" {
 		renderEditShoe(c, http.StatusBadRequest, shoe, msg)
 		return
 	}
 
-	oldImage := shoe.ImageURL
-	shoe.Name, shoe.Brand, shoe.Price, shoe.Description = form.Name, form.Brand, form.Price, form.Description
-	if newImage != "" {
-		shoe.ImageURL = newImage
-	}
+	shoe.Name, shoe.Brand, shoe.Price, shoe.Description, shoe.ImageURL = form.Name, form.Brand, form.Price, form.Description, imageURL
 
 	err := config.DB.Transaction(func(tx *gorm.DB) error {
 		if err := tx.Model(&models.Shoe{}).Where("id = ?", shoe.ID).Updates(map[string]interface{}{
@@ -152,9 +144,7 @@ func adminShoeUpdate(c *gin.Context) {
 		renderError(c, http.StatusInternalServerError, "ไม่สามารถแก้ไขสินค้าได้")
 		return
 	}
-	if newImage != "" {
-		removeImage(oldImage)
-	}
+
 	setFlash(c, "ok", "แก้ไขสินค้าเรียบร้อยแล้ว")
 	c.Redirect(http.StatusSeeOther, "/admin/panel")
 }
